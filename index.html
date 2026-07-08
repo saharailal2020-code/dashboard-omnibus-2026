@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DASHBOARD OMNIBUS 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-soft: #eef3f6;
+      --line: #d9e0e6;
+      --text: #1f2a37;
+      --muted: #667085;
+      --blue: #2866b1;
+      --green: #2f8f68;
+      --amber: #d3912d;
+      --red: #c94a4a;
+      --teal: #17858f;
+      --ink-soft: #394556;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(135deg, rgba(40, 102, 177, 0.08), transparent 28%),
+        linear-gradient(210deg, rgba(47, 143, 104, 0.08), transparent 34%),
+        var(--bg);
+    }
+
+    .shell { width: min(1500px, calc(100vw - 32px)); margin: 0 auto; }
+    .card {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 14px 34px rgba(31, 42, 55, 0.07);
+    }
+
+    .soft {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #fff;
+      background: var(--blue);
+      cursor: pointer;
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+
+    .btn:hover { filter: brightness(0.96); }
+    .btn:active { transform: translateY(1px); }
+    .icon { width: 18px; height: 18px; }
+
+    select, input {
+      min-height: 42px;
+      border: 1px solid #cfd8e3;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    select:focus, input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(40, 102, 177, 0.16); }
+    select:disabled { opacity: 0.6; cursor: not-allowed; }
+    .metric { font-variant-numeric: tabular-nums; }
+    .chart-box { position: relative; height: 320px; }
+    .chart-small { position: relative; height: 245px; }
+    .table-wrap { max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+    th { position: sticky; top: 0; z-index: 1; background: #eef3f6; }
+    .pill { display: inline-flex; align-items: center; gap: 7px; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; }
+    .ok { background: rgba(47, 143, 104, 0.12); color: var(--green); }
+    .warn { background: rgba(211, 145, 45, 0.14); color: #9a6419; }
+    .empty-state { min-height: 340px; display: grid; place-items: center; text-align: center; color: var(--muted); }
+    .hidden-until-data { opacity: 0.45; pointer-events: none; }
+    .category-button {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      width: 100%;
+    }
+    .category-name {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.35;
+    }
+    .category-value {
+      min-width: 46px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .compact-list {
+      max-height: 210px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .shell { width: min(100% - 20px, 1500px); }
+      .chart-box { height: 280px; }
+      .chart-small { height: 230px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="sticky top-0 z-40 bg-white/88 backdrop-blur border-b border-[#d9e0e6]">
+    <div class="shell py-4 flex flex-col xl:flex-row gap-4 xl:items-center xl:justify-between">
+      <div>
+        <div class="text-xs font-extrabold tracking-[0.22em] uppercase text-[#2866b1]">Monitoring Capaian Responden</div>
+        <h1 class="text-2xl md:text-4xl font-extrabold tracking-[0.02em] mt-1">DASHBOARD OMNIBUS 2026</h1>
+      </div>
+      <div class="flex flex-col md:flex-row md:items-center gap-3">
+        <label class="btn" title="Upload file Excel capaian omnibus">
+          <i data-lucide="upload" class="icon"></i>
+          Upload Excel
+          <input id="excelInput" type="file" accept=".xlsx,.xls" class="hidden">
+        </label>
+        <div class="flex flex-col gap-1">
+          <label for="categorySelect" class="text-xs font-bold uppercase tracking-widest text-[#667085]">Filter Kategori</label>
+          <select id="categorySelect" class="w-full md:w-[320px] px-3 text-sm" disabled>
+            <option value="__ALL__">Semua kategori</option>
+          </select>
+        </div>
+        <div id="loadStatus" class="text-xs text-[#667085] md:w-[260px]">Upload file Excel untuk mulai.</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell py-6">
+    <section id="dashboardRoot" class="hidden-until-data">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-bold uppercase tracking-widest text-[#667085]">Capaian</div>
+            <span class="pill ok"><i data-lucide="clipboard-check" class="icon"></i>Total</span>
+          </div>
+          <div id="totalCapaian" class="metric text-4xl font-extrabold mt-4 text-[#2866b1]">-</div>
+          <div id="metaCapaian" class="text-sm text-[#667085] mt-2">-</div>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-bold uppercase tracking-widest text-[#667085]">DO</div>
+            <span class="pill warn"><i data-lucide="minus-circle" class="icon"></i>Total</span>
+          </div>
+          <div id="totalDo" class="metric text-4xl font-extrabold mt-4 text-[#d3912d]">-</div>
+          <div id="metaDo" class="text-sm text-[#667085] mt-2">-</div>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="text-xs font-bold uppercase tracking-widest text-[#667085]">NETT</div>
+            <span class="pill ok"><i data-lucide="target" class="icon"></i>Target 200</span>
+          </div>
+          <div id="totalNett" class="metric text-4xl font-extrabold mt-4 text-[#2f8f68]">-</div>
+          <div id="metaNett" class="text-sm text-[#667085] mt-2">-</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[1.08fr_.92fr] gap-4 mb-4">
+        <section class="card p-5">
+          <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-widest text-[#2866b1]">Top 3 Merek</div>
+              <h2 id="summaryTitle" class="text-xl font-extrabold mt-1">Semua kategori</h2>
+            </div>
+            <div id="targetBadge" class="pill ok self-start"><i data-lucide="check-circle-2" class="icon"></i>-</div>
+          </div>
+          <div class="chart-box">
+            <canvas id="categoryChart"></canvas>
+          </div>
+          <div id="leftTopBrandList" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2"></div>
+        </section>
+
+        <section class="card p-5">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-widest text-[#2866b1]">Top 3 Merek</div>
+              <h2 id="topBrandTitle" class="text-xl font-extrabold mt-1">Status minimal 30 NETT</h2>
+            </div>
+            <span class="pill ok"><i data-lucide="target" class="icon"></i>Minimal 30</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="soft p-3">
+              <div class="text-xs font-bold uppercase tracking-widest text-[#2f8f68]">Top 3 >= 30</div>
+              <div class="text-2xl font-extrabold mt-1"><span id="top3AchievedCount">0</span> kategori</div>
+              <div id="top3AchievedList" class="compact-list mt-3 space-y-2"></div>
+            </div>
+            <div class="soft p-3">
+              <div class="text-xs font-bold uppercase tracking-widest text-[#c94a4a]">Top 3 < 30</div>
+              <div class="text-2xl font-extrabold mt-1"><span id="top3PendingCount">0</span> kategori</div>
+              <div id="top3PendingList" class="compact-list mt-3 space-y-2"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <section class="card p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-widest text-[#2f8f68]">Sudah Mencapai Target</div>
+              <h2 class="text-xl font-extrabold mt-1"><span id="achievedCount">0</span> kategori NETT >= 200</h2>
+            </div>
+            <span class="pill ok"><i data-lucide="badge-check" class="icon"></i>OK</span>
+          </div>
+          <div id="achievedList" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+        </section>
+
+        <section class="card p-5">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-widest text-[#c94a4a]">Belum Mencapai Target</div>
+              <h2 class="text-xl font-extrabold mt-1"><span id="pendingCount">0</span> kategori NETT < 200</h2>
+            </div>
+            <span class="pill warn"><i data-lucide="alert-triangle" class="icon"></i>Perlu Tambahan</span>
+          </div>
+          <div id="pendingList" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+        </section>
+      </div>
+
+      <section class="card p-5 mb-4">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-4">
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest text-[#2866b1]">Tabel Kategori</div>
+            <h2 id="categoryTableTitle" class="text-xl font-extrabold mt-1">Jumlah Capaian, DO, NETT per kategori</h2>
+          </div>
+          <div class="text-sm text-[#667085]">Top 3 merek dihitung berdasarkan NETT terbesar di kategori tersebut.</div>
+        </div>
+        <div class="table-wrap">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-[#394556]">
+                <th class="p-3">Kategori</th>
+                <th class="p-3 text-right">Capaian</th>
+                <th class="p-3 text-right">DO</th>
+                <th class="p-3 text-right">NETT</th>
+                <th class="p-3">Status Target</th>
+                <th class="p-3">Top 3 Merek</th>
+              </tr>
+            </thead>
+            <tbody id="categoryRows" class="divide-y divide-[#e4e9ef]"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card p-5">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-4">
+          <div>
+            <div class="text-xs font-bold uppercase tracking-widest text-[#2866b1]">Detail Merek</div>
+            <h2 id="detailTitle" class="text-xl font-extrabold mt-1">Seluruh merek</h2>
+          </div>
+          <div class="flex flex-col md:flex-row gap-2">
+            <input id="brandSearch" type="search" placeholder="Cari merek..." class="px-3 text-sm md:w-[260px]" disabled>
+            <select id="sortSelect" class="px-3 text-sm md:w-[210px]" disabled>
+              <option value="nettDesc">Urut NETT terbesar</option>
+              <option value="capaianDesc">Urut Capaian terbesar</option>
+              <option value="doDesc">Urut DO terbesar</option>
+              <option value="brandAsc">Urut nama merek</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-left text-[#394556]">
+                <th class="p-3">Kategori</th>
+                <th class="p-3">Merek</th>
+                <th class="p-3 text-right">Capaian</th>
+                <th class="p-3 text-right">DO</th>
+                <th class="p-3 text-right">NETT</th>
+                <th class="p-3 text-right">Gap ke 200</th>
+              </tr>
+            </thead>
+            <tbody id="brandRows" class="divide-y divide-[#e4e9ef]"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section id="emptyState" class="card empty-state p-8">
+      <div>
+        <div class="mx-auto mb-4 w-12 h-12 rounded-full bg-[#eef3f6] grid place-items-center text-[#2866b1]">
+          <i data-lucide="file-spreadsheet" class="w-7 h-7"></i>
+        </div>
+        <h2 class="text-xl font-extrabold">Upload file "0. capaian omnibus 2026.xlsx"</h2>
+        <p class="mt-2 max-w-xl">Dashboard akan membaca kolom kategori, merek, Capaian, DO, dan NETT dari sheet pertama atau sheet bernama <b>capaian</b>.</p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TARGET_NETT = 200;
+    const DEFAULT_FILE = '0. capaian omnibus 2026.xlsx';
+    const els = {
+      input: document.getElementById('excelInput'),
+      status: document.getElementById('loadStatus'),
+      category: document.getElementById('categorySelect'),
+      root: document.getElementById('dashboardRoot'),
+      empty: document.getElementById('emptyState'),
+      search: document.getElementById('brandSearch'),
+      sort: document.getElementById('sortSelect')
+    };
+
+    const fmt = new Intl.NumberFormat('id-ID');
+    const colors = {
+      capaian: '#2866b1',
+      do: '#d3912d',
+      nett: '#2f8f68',
+      pending: '#c94a4a',
+      teal: '#17858f',
+      grid: '#d9e0e6'
+    };
+
+    let appData = null;
+    let charts = {};
+
+    function setStatus(text) {
+      els.status.textContent = text;
+    }
+
+    function numberValue(value) {
+      if (value === null || value === undefined || value === '') return 0;
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+      const normalized = String(value).replace(/\./g, '').replace(',', '.').trim();
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function textValue(value) {
+      if (value === null || value === undefined) return '';
+      return String(value).trim();
+    }
+
+    function normalizeHeader(header) {
+      return textValue(header).toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+    }
+
+    function findColumn(headers, candidates) {
+      const normalized = headers.map(normalizeHeader);
+      for (const candidate of candidates) {
+        const index = normalized.indexOf(normalizeHeader(candidate));
+        if (index >= 0) return index;
+      }
+      return -1;
+    }
+
+    function readWorkbook(workbook) {
+      const sheetName = workbook.SheetNames.find(name => name.trim().toLowerCase() === 'capaian') || workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true })
+        .filter(row => row.some(cell => textValue(cell) !== ''));
+
+      if (rows.length < 2) {
+        throw new Error('File Excel tidak memiliki data yang bisa dibaca.');
+      }
+
+      const headerIndex = rows.findIndex(row => row.some(cell => normalizeHeader(cell) === 'merek') && row.some(cell => normalizeHeader(cell).includes('nett')));
+      const headers = rows[headerIndex >= 0 ? headerIndex : 0];
+      const dataRows = rows.slice((headerIndex >= 0 ? headerIndex : 0) + 1);
+
+      const col = {
+        brand: findColumn(headers, ['Merek', 'Brand']),
+        category: findColumn(headers, ['Kategri', 'Kategori', 'Category']),
+        capaian: findColumn(headers, ['Capaian']),
+        doValue: findColumn(headers, ['Do', 'DO']),
+        nett: findColumn(headers, ['NETT', 'Nett'])
+      };
+
+      const missing = Object.entries(col)
+        .filter(([, index]) => index < 0)
+        .map(([name]) => name);
+
+      if (missing.length) {
+        throw new Error(`Kolom wajib tidak ditemukan: ${missing.join(', ')}.`);
+      }
+
+      const records = dataRows.map(row => ({
+        category: textValue(row[col.category]),
+        brand: textValue(row[col.brand]),
+        capaian: numberValue(row[col.capaian]),
+        doValue: numberValue(row[col.doValue]),
+        nett: numberValue(row[col.nett])
+      })).filter(row => row.category && row.brand);
+
+      if (!records.length) {
+        throw new Error('Tidak ada baris data valid setelah header.');
+      }
+
+      return buildData(records, sheetName);
+    }
+
+    function buildData(records, sheetName) {
+      const categoryMap = new Map();
+      records.forEach(row => {
+        if (!categoryMap.has(row.category)) {
+          categoryMap.set(row.category, { category: row.category, capaian: 0, doValue: 0, nett: 0, brands: [] });
+        }
+        const item = categoryMap.get(row.category);
+        item.capaian += row.capaian;
+        item.doValue += row.doValue;
+        item.nett += row.nett;
+        item.brands.push(row);
+      });
+
+      const categories = Array.from(categoryMap.values()).sort((a, b) => b.nett - a.nett || a.category.localeCompare(b.category, 'id'));
+      categories.forEach(item => {
+        item.topThree = topBrands(item.brands, 3);
+        item.top3Min = item.topThree.length >= 3 ? Math.min(...item.topThree.map(row => row.nett)) : 0;
+        item.top3Ready = item.topThree.length >= 3 && item.top3Min >= 30;
+      });
+      const achieved = categories.filter(item => item.nett >= TARGET_NETT).sort((a, b) => b.nett - a.nett);
+      const pending = categories.filter(item => item.nett < TARGET_NETT).sort((a, b) => b.nett - a.nett);
+      const top3Achieved = categories.filter(item => item.top3Ready).sort((a, b) => b.top3Min - a.top3Min || b.nett - a.nett);
+      const top3Pending = categories.filter(item => !item.top3Ready).sort((a, b) => b.top3Min - a.top3Min || b.nett - a.nett);
+      const total = categories.reduce((acc, item) => {
+        acc.capaian += item.capaian;
+        acc.doValue += item.doValue;
+        acc.nett += item.nett;
+        return acc;
+      }, { capaian: 0, doValue: 0, nett: 0 });
+
+      return { records, categories, achieved, pending, top3Achieved, top3Pending, total, sheetName };
+    }
+
+    function makeWorkbookFromArrayBuffer(buffer) {
+      return XLSX.read(buffer, { type: 'array', cellDates: true });
+    }
+
+    async function handleFile(file) {
+      try {
+        setStatus(`Membaca ${file.name}...`);
+        const buffer = await file.arrayBuffer();
+        const workbook = makeWorkbookFromArrayBuffer(buffer);
+        appData = readWorkbook(workbook);
+        hydrateControls();
+        renderDashboard();
+        setStatus(`Data aktif: ${file.name}`);
+      } catch (error) {
+        console.error(error);
+        setStatus(`Gagal membaca file: ${error.message}`);
+        alert(`Gagal membaca file Excel.\n\n${error.message}`);
+      }
+    }
+
+    async function tryAutoLoad() {
+      try {
+        setStatus(`Mencoba memuat ${DEFAULT_FILE}...`);
+        const response = await fetch(DEFAULT_FILE);
+        if (!response.ok) throw new Error('File lokal tidak bisa dimuat otomatis.');
+        const buffer = await response.arrayBuffer();
+        const workbook = makeWorkbookFromArrayBuffer(buffer);
+        appData = readWorkbook(workbook);
+        hydrateControls();
+        renderDashboard();
+        setStatus(`Data aktif: ${DEFAULT_FILE}`);
+      } catch (error) {
+        setStatus('Upload file Excel untuk mulai.');
+      }
+    }
+
+    function hydrateControls() {
+      els.category.innerHTML = '<option value="__ALL__">Semua kategori</option>';
+      appData.categories
+        .slice()
+        .sort((a, b) => a.category.localeCompare(b.category, 'id'))
+        .forEach(item => {
+          const option = document.createElement('option');
+          option.value = item.category;
+          option.textContent = item.category;
+          els.category.appendChild(option);
+        });
+
+      els.category.disabled = false;
+      els.search.disabled = false;
+      els.sort.disabled = false;
+      els.root.classList.remove('hidden-until-data');
+      els.empty.classList.add('hidden');
+    }
+
+    function selectedCategory() {
+      const value = els.category.value;
+      if (!appData || value === '__ALL__') return null;
+      return appData.categories.find(item => item.category === value) || null;
+    }
+
+    function currentSummary() {
+      const category = selectedCategory();
+      if (category) return category;
+      return {
+        category: 'Semua kategori',
+        capaian: appData.total.capaian,
+        doValue: appData.total.doValue,
+        nett: appData.total.nett,
+        brands: appData.records
+      };
+    }
+
+    function topBrands(rows, limit = 3) {
+      return rows
+        .slice()
+        .sort((a, b) => b.nett - a.nett || b.capaian - a.capaian || a.brand.localeCompare(b.brand, 'id'))
+        .slice(0, limit);
+    }
+
+    function filteredBrandRows() {
+      const category = selectedCategory();
+      let rows = category ? category.brands.slice() : appData.records.slice();
+      const query = els.search.value.trim().toLowerCase();
+      if (query) {
+        rows = rows.filter(row => row.brand.toLowerCase().includes(query) || row.category.toLowerCase().includes(query));
+      }
+
+      const sort = els.sort.value;
+      rows.sort((a, b) => {
+        if (sort === 'capaianDesc') return b.capaian - a.capaian || a.brand.localeCompare(b.brand, 'id');
+        if (sort === 'doDesc') return b.doValue - a.doValue || a.brand.localeCompare(b.brand, 'id');
+        if (sort === 'brandAsc') return a.brand.localeCompare(b.brand, 'id') || a.category.localeCompare(b.category, 'id');
+        return b.nett - a.nett || a.brand.localeCompare(b.brand, 'id');
+      });
+      return rows;
+    }
+
+    function upsertChart(id, config) {
+      if (charts[id]) charts[id].destroy();
+      charts[id] = new Chart(document.getElementById(id), config);
+    }
+
+    function renderDashboard() {
+      if (!appData) return;
+      renderSummary();
+      renderCategoryChart();
+      renderTargetLists();
+      renderTop3Status();
+      renderCategorySummaryTable();
+      renderBrandTable();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderSummary() {
+      const summary = currentSummary();
+      const category = selectedCategory();
+      document.getElementById('summaryTitle').textContent = summary.category;
+      document.getElementById('totalCapaian').textContent = fmt.format(summary.capaian);
+      document.getElementById('totalDo').textContent = fmt.format(summary.doValue);
+      document.getElementById('totalNett').textContent = fmt.format(summary.nett);
+      document.getElementById('metaCapaian').textContent = category ? `${summary.brands.length} merek pada kategori ini` : `${appData.categories.length} kategori`;
+      document.getElementById('metaDo').textContent = category ? `DO kategori ${summary.category}` : `Akumulasi seluruh kategori`;
+      document.getElementById('metaNett').textContent = category ? `Gap target: ${fmt.format(Math.max(TARGET_NETT - summary.nett, 0))}` : `${appData.achieved.length} kategori sudah >= 200`;
+
+      const badge = document.getElementById('targetBadge');
+      if (category) {
+        const isAchieved = summary.nett >= TARGET_NETT;
+        badge.className = `pill ${isAchieved ? 'ok' : 'warn'} self-start`;
+        badge.innerHTML = `<i data-lucide="bar-chart-3" class="icon"></i>Berdasarkan NETT`;
+      } else {
+        badge.className = 'pill ok self-start';
+        badge.innerHTML = `<i data-lucide="bar-chart-3" class="icon"></i>Berdasarkan NETT`;
+      }
+    }
+
+    function renderCategoryChart() {
+      const summary = currentSummary();
+      const rows = topBrands(summary.brands, 3);
+      upsertChart('categoryChart', {
+        type: 'bar',
+        data: {
+          labels: rows.map(row => row.brand),
+          datasets: [
+            { label: 'NETT', data: rows.map(row => row.nett), backgroundColor: colors.nett, borderRadius: 4 }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => {
+                  const row = rows[items[0].dataIndex];
+                  return `${row.brand} - ${row.category}`;
+                },
+                label: ctx => `NETT: ${fmt.format(ctx.raw)}`
+              }
+            }
+          },
+          scales: {
+            x: { beginAtZero: true, grid: { color: colors.grid }, ticks: { callback: value => fmt.format(value) } },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+
+      document.getElementById('leftTopBrandList').innerHTML = rows.length ? rows.map((row, index) => `
+        <button type="button" class="soft p-3 text-left hover:bg-white transition" onclick="selectCategory('${encodeURIComponent(row.category)}')">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="font-extrabold category-name">${index + 1}. ${row.brand}</div>
+              <div class="text-xs text-[#667085] category-name mt-1">${row.category}</div>
+            </div>
+            <div class="metric font-extrabold text-[#2f8f68] whitespace-nowrap">${fmt.format(row.nett)}</div>
+          </div>
+        </button>
+      `).join('') : '<div class="text-sm text-[#667085]">Tidak ada data merek.</div>';
+    }
+
+    function renderTargetLists() {
+      document.getElementById('achievedCount').textContent = fmt.format(appData.achieved.length);
+      document.getElementById('pendingCount').textContent = fmt.format(appData.pending.length);
+      document.getElementById('achievedList').innerHTML = renderCategoryPills(appData.achieved, true);
+      document.getElementById('pendingList').innerHTML = renderCategoryPills(appData.pending, false);
+    }
+
+    function renderTop3Status() {
+      const category = selectedCategory();
+      const achievedRows = category ? (category.top3Ready ? [category] : []) : appData.top3Achieved;
+      const pendingRows = category ? (category.top3Ready ? [] : [category]) : appData.top3Pending;
+
+      document.getElementById('top3AchievedCount').textContent = fmt.format(achievedRows.length);
+      document.getElementById('top3PendingCount').textContent = fmt.format(pendingRows.length);
+      document.getElementById('top3AchievedList').innerHTML = renderTop3Pills(achievedRows, true);
+      document.getElementById('top3PendingList').innerHTML = renderTop3Pills(pendingRows, false);
+    }
+
+    function renderTop3Pills(rows, ready) {
+      if (!rows.length) return '<div class="text-xs text-[#667085]">Tidak ada kategori.</div>';
+      return rows.map(row => {
+        const detail = row.topThree.map(brand => `${brand.brand}: ${fmt.format(brand.nett)}`).join(', ');
+        const minText = row.topThree.length >= 3 ? `Minimal Top 3: ${fmt.format(row.top3Min)}` : `Merek tersedia: ${fmt.format(row.topThree.length)}`;
+        return `
+          <button type="button" class="w-full text-left bg-white/70 border border-[#d9e0e6] rounded-lg p-2 hover:bg-white transition" onclick="selectCategory('${encodeURIComponent(row.category)}')">
+            <div class="category-button">
+              <div class="category-name text-sm font-extrabold">${row.category}</div>
+              <div class="category-value metric font-extrabold ${ready ? 'text-[#2f8f68]' : 'text-[#c94a4a]'}">${fmt.format(row.top3Min)}</div>
+            </div>
+            <div class="text-xs text-[#667085] mt-1">${minText}</div>
+            <div class="text-xs text-[#667085] mt-1">${detail || '-'}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderCategorySummaryTable() {
+      const category = selectedCategory();
+      const rows = category ? [category] : appData.categories;
+      document.getElementById('categoryTableTitle').textContent = category
+        ? `Jumlah Capaian, DO, NETT kategori ${category.category}`
+        : 'Jumlah Capaian, DO, NETT per kategori';
+
+      document.getElementById('categoryRows').innerHTML = rows.map(row => {
+        const achieved = row.nett >= TARGET_NETT;
+        const topThree = row.topThree.map(brand => `${brand.brand} (${fmt.format(brand.nett)})`).join(', ');
+        const top3Status = row.top3Ready ? 'Top 3 >= 30' : 'Top 3 < 30';
+        return `
+          <tr class="hover:bg-[#f8fafc]">
+            <td class="p-3 font-extrabold">${row.category}</td>
+            <td class="p-3 text-right metric">${fmt.format(row.capaian)}</td>
+            <td class="p-3 text-right metric">${fmt.format(row.doValue)}</td>
+            <td class="p-3 text-right metric font-extrabold text-[#2f8f68]">${fmt.format(row.nett)}</td>
+            <td class="p-3">${achieved ? '<span class="pill ok">Sudah >= 200</span>' : `<span class="pill warn">Kurang ${fmt.format(TARGET_NETT - row.nett)}</span>`} <span class="pill ${row.top3Ready ? 'ok' : 'warn'} mt-1">${top3Status}</span></td>
+            <td class="p-3">${topThree || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderCategoryPills(rows, achieved) {
+      if (!rows.length) return '<div class="text-sm text-[#667085]">Tidak ada kategori.</div>';
+      return rows.map(row => {
+        const gap = Math.max(TARGET_NETT - row.nett, 0);
+        return `
+          <button type="button" class="soft p-3 text-left hover:bg-white transition" onclick="selectCategory('${encodeURIComponent(row.category)}')">
+            <div class="category-button">
+              <div class="category-name font-extrabold">${row.category}</div>
+              <div class="category-value metric font-extrabold ${achieved ? 'text-[#2f8f68]' : 'text-[#c94a4a]'}">${fmt.format(row.nett)}</div>
+            </div>
+            <div class="text-xs text-[#667085] mt-1">${achieved ? 'Sudah mencapai target' : `Kurang ${fmt.format(gap)} responden`}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectCategory(encodedCategory) {
+      els.category.value = decodeURIComponent(encodedCategory);
+      els.search.value = '';
+      renderDashboard();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderBrandTable() {
+      const category = selectedCategory();
+      const rows = filteredBrandRows();
+      document.getElementById('detailTitle').textContent = category ? `Seluruh merek kategori ${category.category}` : 'Seluruh merek dari semua kategori';
+
+      document.getElementById('brandRows').innerHTML = rows.length ? rows.map(row => {
+        const gap = Math.max(TARGET_NETT - row.nett, 0);
+        return `
+          <tr class="hover:bg-[#f8fafc]">
+            <td class="p-3 font-semibold">${row.category}</td>
+            <td class="p-3">${row.brand}</td>
+            <td class="p-3 text-right metric">${fmt.format(row.capaian)}</td>
+            <td class="p-3 text-right metric">${fmt.format(row.doValue)}</td>
+            <td class="p-3 text-right metric font-extrabold text-[#2f8f68]">${fmt.format(row.nett)}</td>
+            <td class="p-3 text-right metric">${gap ? fmt.format(gap) : '<span class="text-[#2f8f68] font-bold">0</span>'}</td>
+          </tr>
+        `;
+      }).join('') : `
+        <tr><td colspan="6" class="p-5 text-center text-[#667085]">Tidak ada merek yang cocok dengan pencarian.</td></tr>
+      `;
+    }
+
+    els.input.addEventListener('change', event => {
+      const file = event.target.files && event.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    els.category.addEventListener('change', () => {
+      els.search.value = '';
+      renderDashboard();
+    });
+
+    els.search.addEventListener('input', renderBrandTable);
+    els.sort.addEventListener('change', renderBrandTable);
+
+    window.selectCategory = selectCategory;
+
+    if (window.lucide) lucide.createIcons();
+    tryAutoLoad();
+  </script>
+</body>
+</html>
