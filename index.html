@@ -85,6 +85,30 @@
 
     select:focus, input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(40, 102, 177, 0.16); }
     select:disabled { opacity: 0.6; cursor: not-allowed; }
+    .filter-box {
+      background: linear-gradient(180deg, rgba(238, 243, 246, 0.95), rgba(255, 255, 255, 0.78));
+      border: 1px solid #c9d8e8;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: inset 0 0 0 1px rgba(40, 102, 177, 0.04);
+    }
+    .filter-box label { color: #2866b1; }
+    .filter-box select {
+      border-color: #aebfd3;
+      background-color: #f7fbff;
+      font-weight: 600;
+    }
+    .filter-box.is-active {
+      background: linear-gradient(180deg, rgba(40, 102, 177, 0.14), rgba(47, 143, 104, 0.09));
+      border-color: #2866b1;
+      box-shadow: 0 0 0 3px rgba(40, 102, 177, 0.10);
+    }
+    .filter-box.is-active label { color: #1f579a; }
+    .filter-box.is-active select {
+      border-color: #2866b1;
+      background-color: #ffffff;
+      color: #1f2a37;
+    }
     .metric { font-variant-numeric: tabular-nums; }
     .chart-box { position: relative; height: 320px; }
     .chart-small { position: relative; height: 245px; }
@@ -114,10 +138,40 @@
       white-space: nowrap;
     }
     .compact-list {
-      max-height: 210px;
+      max-height: 330px;
       overflow: auto;
       padding-right: 4px;
     }
+    .top-brand-row {
+      background: linear-gradient(90deg, rgba(47, 143, 104, 0.14), rgba(255, 255, 255, 0.96));
+      box-shadow: inset 4px 0 0 var(--green);
+    }
+    .top-brand-row:hover { background: linear-gradient(90deg, rgba(47, 143, 104, 0.20), rgba(255, 255, 255, 1)); }
+    .rank-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #ffffff;
+      background: var(--green);
+      margin-left: 8px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .brand-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .rank-1 { background: var(--green); }
+    .rank-2 { background: var(--blue); }
+    .rank-3 { background: var(--amber); }
 
     @media (max-width: 768px) {
       .shell { width: min(100% - 20px, 1500px); }
@@ -139,10 +193,26 @@
           Upload Excel
           <input id="excelInput" type="file" accept=".xlsx,.xls" class="hidden">
         </label>
-        <div class="flex flex-col gap-1">
+        <div id="categoryFilterBox" class="filter-box flex flex-col gap-1">
           <label for="categorySelect" class="text-xs font-bold uppercase tracking-widest text-[#667085]">Filter Kategori</label>
           <select id="categorySelect" class="w-full md:w-[320px] px-3 text-sm" disabled>
             <option value="__ALL__">Semua kategori</option>
+          </select>
+        </div>
+        <div id="targetFilterBox" class="filter-box flex flex-col gap-1">
+          <label for="targetFilter" class="text-xs font-bold uppercase tracking-widest text-[#667085]">Filter NETT</label>
+          <select id="targetFilter" class="w-full md:w-[180px] px-3 text-sm" disabled>
+            <option value="all">Semua NETT</option>
+            <option value="achieved">NETT >= 200</option>
+            <option value="pending">NETT < 200</option>
+          </select>
+        </div>
+        <div id="top3FilterBox" class="filter-box flex flex-col gap-1">
+          <label for="top3Filter" class="text-xs font-bold uppercase tracking-widest text-[#667085]">Filter Top 3</label>
+          <select id="top3Filter" class="w-full md:w-[190px] px-3 text-sm" disabled>
+            <option value="all">Semua Top 3</option>
+            <option value="ready">Top 3 >= 30</option>
+            <option value="pending">Top 3 < 30</option>
           </select>
         </div>
         <div id="loadStatus" class="text-xs text-[#667085] md:w-[260px]">Upload file Excel untuk mulai.</div>
@@ -291,7 +361,6 @@
                 <th class="p-3 text-right">Capaian</th>
                 <th class="p-3 text-right">DO</th>
                 <th class="p-3 text-right">NETT</th>
-                <th class="p-3 text-right">Gap ke 200</th>
               </tr>
             </thead>
             <tbody id="brandRows" class="divide-y divide-[#e4e9ef]"></tbody>
@@ -318,6 +387,11 @@
       input: document.getElementById('excelInput'),
       status: document.getElementById('loadStatus'),
       category: document.getElementById('categorySelect'),
+      targetFilter: document.getElementById('targetFilter'),
+      top3Filter: document.getElementById('top3Filter'),
+      categoryFilterBox: document.getElementById('categoryFilterBox'),
+      targetFilterBox: document.getElementById('targetFilterBox'),
+      top3FilterBox: document.getElementById('top3FilterBox'),
       root: document.getElementById('dashboardRoot'),
       empty: document.getElementById('emptyState'),
       search: document.getElementById('brandSearch'),
@@ -482,8 +556,21 @@
     }
 
     function hydrateControls() {
+      updateCategoryOptions();
+      els.category.disabled = false;
+      els.targetFilter.disabled = false;
+      els.top3Filter.disabled = false;
+      els.search.disabled = false;
+      els.sort.disabled = false;
+      els.root.classList.remove('hidden-until-data');
+      els.empty.classList.add('hidden');
+    }
+
+    function updateCategoryOptions() {
+      const previous = els.category.value || '__ALL__';
       els.category.innerHTML = '<option value="__ALL__">Semua kategori</option>';
-      appData.categories
+      const categories = filteredCategories({ ignoreSelectedCategory: true });
+      categories
         .slice()
         .sort((a, b) => a.category.localeCompare(b.category, 'id'))
         .forEach(item => {
@@ -493,11 +580,8 @@
           els.category.appendChild(option);
         });
 
-      els.category.disabled = false;
-      els.search.disabled = false;
-      els.sort.disabled = false;
-      els.root.classList.remove('hidden-until-data');
-      els.empty.classList.add('hidden');
+      const hasPrevious = Array.from(els.category.options).some(option => option.value === previous);
+      els.category.value = hasPrevious ? previous : '__ALL__';
     }
 
     function selectedCategory() {
@@ -506,15 +590,55 @@
       return appData.categories.find(item => item.category === value) || null;
     }
 
+    function categoryMatchesFilters(category) {
+      const targetFilter = els.targetFilter.value;
+      const top3Filter = els.top3Filter.value;
+      const targetOk = targetFilter === 'all'
+        || (targetFilter === 'achieved' && category.nett >= TARGET_NETT)
+        || (targetFilter === 'pending' && category.nett < TARGET_NETT);
+      const top3Ok = top3Filter === 'all'
+        || (top3Filter === 'ready' && category.top3Ready)
+        || (top3Filter === 'pending' && !category.top3Ready);
+      return targetOk && top3Ok;
+    }
+
+    function filteredCategories(options = {}) {
+      if (!appData) return [];
+      const category = selectedCategory();
+      if (category && !options.ignoreSelectedCategory) {
+        return categoryMatchesFilters(category) ? [category] : [];
+      }
+      return appData.categories.filter(categoryMatchesFilters);
+    }
+
+    function filteredRecords() {
+      return filteredCategories().flatMap(category => category.brands);
+    }
+
     function currentSummary() {
       const category = selectedCategory();
-      if (category) return category;
+      const categories = filteredCategories();
+      if (category) {
+        return categories[0] || { category: category.category, capaian: 0, doValue: 0, nett: 0, brands: [] };
+      }
+      const labelParts = [];
+      if (els.targetFilter.value === 'achieved') labelParts.push('NETT >= 200');
+      if (els.targetFilter.value === 'pending') labelParts.push('NETT < 200');
+      if (els.top3Filter.value === 'ready') labelParts.push('Top 3 >= 30');
+      if (els.top3Filter.value === 'pending') labelParts.push('Top 3 < 30');
+      const total = categories.reduce((acc, item) => {
+        acc.capaian += item.capaian;
+        acc.doValue += item.doValue;
+        acc.nett += item.nett;
+        acc.brands.push(...item.brands);
+        return acc;
+      }, { capaian: 0, doValue: 0, nett: 0, brands: [] });
       return {
-        category: 'Semua kategori',
-        capaian: appData.total.capaian,
-        doValue: appData.total.doValue,
-        nett: appData.total.nett,
-        brands: appData.records
+        category: labelParts.length ? labelParts.join(' + ') : 'Semua kategori',
+        capaian: total.capaian,
+        doValue: total.doValue,
+        nett: total.nett,
+        brands: total.brands
       };
     }
 
@@ -526,8 +650,7 @@
     }
 
     function filteredBrandRows() {
-      const category = selectedCategory();
-      let rows = category ? category.brands.slice() : appData.records.slice();
+      let rows = filteredRecords();
       const query = els.search.value.trim().toLowerCase();
       if (query) {
         rows = rows.filter(row => row.brand.toLowerCase().includes(query) || row.category.toLowerCase().includes(query));
@@ -556,7 +679,14 @@
       renderTop3Status();
       renderCategorySummaryTable();
       renderBrandTable();
+      renderFilterStyles();
       if (window.lucide) lucide.createIcons();
+    }
+
+    function renderFilterStyles() {
+      els.categoryFilterBox.classList.toggle('is-active', els.category.value !== '__ALL__');
+      els.targetFilterBox.classList.toggle('is-active', els.targetFilter.value !== 'all');
+      els.top3FilterBox.classList.toggle('is-active', els.top3Filter.value !== 'all');
     }
 
     function renderSummary() {
@@ -566,9 +696,10 @@
       document.getElementById('totalCapaian').textContent = fmt.format(summary.capaian);
       document.getElementById('totalDo').textContent = fmt.format(summary.doValue);
       document.getElementById('totalNett').textContent = fmt.format(summary.nett);
-      document.getElementById('metaCapaian').textContent = category ? `${summary.brands.length} merek pada kategori ini` : `${appData.categories.length} kategori`;
-      document.getElementById('metaDo').textContent = category ? `DO kategori ${summary.category}` : `Akumulasi seluruh kategori`;
-      document.getElementById('metaNett').textContent = category ? `Gap target: ${fmt.format(Math.max(TARGET_NETT - summary.nett, 0))}` : `${appData.achieved.length} kategori sudah >= 200`;
+      const visibleCategoryCount = filteredCategories().length;
+      document.getElementById('metaCapaian').textContent = category ? `${summary.brands.length} merek pada kategori ini` : `${visibleCategoryCount} kategori tampil`;
+      document.getElementById('metaDo').textContent = category ? `DO kategori ${summary.category}` : `Akumulasi kategori sesuai filter`;
+      document.getElementById('metaNett').textContent = category ? `Gap target: ${fmt.format(Math.max(TARGET_NETT - summary.nett, 0))}` : `${fmt.format(summary.brands.length)} merek tampil`;
 
       const badge = document.getElementById('targetBadge');
       if (category) {
@@ -625,20 +756,23 @@
             <div class="metric font-extrabold text-[#2f8f68] whitespace-nowrap">${fmt.format(row.nett)}</div>
           </div>
         </button>
-      `).join('') : '<div class="text-sm text-[#667085]">Tidak ada data merek.</div>';
+      `).join('') : '<div class="text-sm text-[#667085]">Tidak ada data merek sesuai filter.</div>';
     }
 
     function renderTargetLists() {
-      document.getElementById('achievedCount').textContent = fmt.format(appData.achieved.length);
-      document.getElementById('pendingCount').textContent = fmt.format(appData.pending.length);
-      document.getElementById('achievedList').innerHTML = renderCategoryPills(appData.achieved, true);
-      document.getElementById('pendingList').innerHTML = renderCategoryPills(appData.pending, false);
+      const categories = filteredCategories();
+      const achievedRows = categories.filter(item => item.nett >= TARGET_NETT).sort((a, b) => b.nett - a.nett);
+      const pendingRows = categories.filter(item => item.nett < TARGET_NETT).sort((a, b) => b.nett - a.nett);
+      document.getElementById('achievedCount').textContent = fmt.format(achievedRows.length);
+      document.getElementById('pendingCount').textContent = fmt.format(pendingRows.length);
+      document.getElementById('achievedList').innerHTML = renderCategoryPills(achievedRows, true);
+      document.getElementById('pendingList').innerHTML = renderCategoryPills(pendingRows, false);
     }
 
     function renderTop3Status() {
-      const category = selectedCategory();
-      const achievedRows = category ? (category.top3Ready ? [category] : []) : appData.top3Achieved;
-      const pendingRows = category ? (category.top3Ready ? [] : [category]) : appData.top3Pending;
+      const categories = filteredCategories();
+      const achievedRows = categories.filter(item => item.top3Ready).sort((a, b) => b.top3Min - a.top3Min || b.nett - a.nett);
+      const pendingRows = categories.filter(item => !item.top3Ready).sort((a, b) => b.top3Min - a.top3Min || b.nett - a.nett);
 
       document.getElementById('top3AchievedCount').textContent = fmt.format(achievedRows.length);
       document.getElementById('top3PendingCount').textContent = fmt.format(pendingRows.length);
@@ -666,12 +800,12 @@
 
     function renderCategorySummaryTable() {
       const category = selectedCategory();
-      const rows = category ? [category] : appData.categories;
+      const rows = filteredCategories();
       document.getElementById('categoryTableTitle').textContent = category
         ? `Jumlah Capaian, DO, NETT kategori ${category.category}`
-        : 'Jumlah Capaian, DO, NETT per kategori';
+        : 'Jumlah Capaian, DO, NETT per kategori sesuai filter';
 
-      document.getElementById('categoryRows').innerHTML = rows.map(row => {
+      document.getElementById('categoryRows').innerHTML = rows.length ? rows.map(row => {
         const achieved = row.nett >= TARGET_NETT;
         const topThree = row.topThree.map(brand => `${brand.brand} (${fmt.format(brand.nett)})`).join(', ');
         const top3Status = row.top3Ready ? 'Top 3 >= 30' : 'Top 3 < 30';
@@ -685,7 +819,7 @@
             <td class="p-3">${topThree || '-'}</td>
           </tr>
         `;
-      }).join('');
+      }).join('') : '<tr><td colspan="6" class="p-5 text-center text-[#667085]">Tidak ada kategori yang cocok dengan filter.</td></tr>';
     }
 
     function renderCategoryPills(rows, achieved) {
@@ -714,22 +848,25 @@
     function renderBrandTable() {
       const category = selectedCategory();
       const rows = filteredBrandRows();
-      document.getElementById('detailTitle').textContent = category ? `Seluruh merek kategori ${category.category}` : 'Seluruh merek dari semua kategori';
+      document.getElementById('detailTitle').textContent = category ? `Seluruh merek kategori ${category.category}` : 'Seluruh merek sesuai filter';
 
       document.getElementById('brandRows').innerHTML = rows.length ? rows.map(row => {
-        const gap = Math.max(TARGET_NETT - row.nett, 0);
+        const sourceCategory = appData.categories.find(item => item.category === row.category);
+        const topIndex = sourceCategory ? sourceCategory.topThree.findIndex(brand => brand.brand === row.brand) : -1;
+        const rank = topIndex + 1;
+        const isTopThree = rank >= 1 && rank <= 3;
+        const rankBadge = isTopThree ? `<span class="rank-badge rank-${rank}">TOP ${rank}</span>` : '';
         return `
-          <tr class="hover:bg-[#f8fafc]">
+          <tr class="${isTopThree ? 'top-brand-row' : 'hover:bg-[#f8fafc]'}">
             <td class="p-3 font-semibold">${row.category}</td>
-            <td class="p-3">${row.brand}</td>
+            <td class="p-3 font-semibold"><span class="brand-cell"><span>${row.brand}</span>${rankBadge}</span></td>
             <td class="p-3 text-right metric">${fmt.format(row.capaian)}</td>
             <td class="p-3 text-right metric">${fmt.format(row.doValue)}</td>
             <td class="p-3 text-right metric font-extrabold text-[#2f8f68]">${fmt.format(row.nett)}</td>
-            <td class="p-3 text-right metric">${gap ? fmt.format(gap) : '<span class="text-[#2f8f68] font-bold">0</span>'}</td>
           </tr>
         `;
       }).join('') : `
-        <tr><td colspan="6" class="p-5 text-center text-[#667085]">Tidak ada merek yang cocok dengan pencarian.</td></tr>
+        <tr><td colspan="5" class="p-5 text-center text-[#667085]">Tidak ada merek yang cocok dengan pencarian.</td></tr>
       `;
     }
 
@@ -742,6 +879,15 @@
       els.search.value = '';
       renderDashboard();
     });
+
+    function handleStatusFilterChange() {
+      updateCategoryOptions();
+      els.search.value = '';
+      renderDashboard();
+    }
+
+    els.targetFilter.addEventListener('change', handleStatusFilterChange);
+    els.top3Filter.addEventListener('change', handleStatusFilterChange);
 
     els.search.addEventListener('input', renderBrandTable);
     els.sort.addEventListener('change', renderBrandTable);
